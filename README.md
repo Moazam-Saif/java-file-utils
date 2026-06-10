@@ -1,163 +1,124 @@
 # java-file-utils
 
-A pair of Java command-line utilities: a recursive file search tool and a string permutation generator, each with a companion JUnit 5 test suite.
+Two standalone Java CLI utilities: a recursive file search tool and a string permutation generator, each with a JUnit 5 test suite.
 
-## Overview
+---
 
-This project contains two independent, self-contained programs that share a common theme of recursive traversal — one over a file system, the other over character arrangements.
+## File Guide
 
-## Suggested Name
+### Read these — they define the code
 
-`java-file-utils` — replacing the unlabeled `filesearch` directory.
+| File | Why it matters |
+|---|---|
+| `src/FileSearch.java` | The recursive directory walker. Contains `searchFiles()` (the core logic), `matches()` (case comparison), and `main()` (argument parsing and output). Start here for the file search program. |
+| `src/FileSearchTest.java` | JUnit 5 tests for `FileSearch`. Uses a real temp directory created in `@BeforeEach` and torn down in `@AfterEach`. Tests case sensitivity, invalid paths, and private methods via reflection. |
+| `src/StringPermutations.java` | Two independent permutation algorithms: recursive backtracking (`permute()`) and iterative Heap's algorithm (`nonRecursivePermutations()`). Also contains duplicate-skipping logic in `shouldSkip()`. |
+| `src/StringPermutationsTest.java` | JUnit 5 tests for `StringPermutations`. Covers valid input, empty input, duplicate handling, and private helper methods via reflection. |
 
-## Project Structure
+### Ignore these — generated or IDE-only
 
-```
-src/
-├── FileSearch.java             # Recursive file-system search CLI
-├── FileSearchTest.java         # JUnit 5 tests for FileSearch
-├── StringPermutations.java     # Recursive + iterative permutation generator CLI
-└── StringPermutationsTest.java # JUnit 5 tests for StringPermutations
-```
+| File / Folder | Reason to ignore |
+|---|---|
+| `bin/` | Compiled `.class` files. Regenerated on every build. |
+| `testDir/` | Temporary directory created at runtime by `FileSearchTest`. Deleted after each test run; should never be committed. |
+| `.classpath` | Eclipse build-path descriptor. Not portable outside Eclipse. |
+| `.project` | Eclipse project metadata. IDE bookkeeping only. |
+| `.settings/` | Eclipse compiler and encoding preferences. No effect on `javac` or test runners. |
 
 ---
 
 ## FileSearch
 
-Recursively walks a directory tree looking for files whose names match one or more target names. Supports both case-sensitive and case-insensitive matching.
+Recursively walks a directory tree and prints the absolute path of every file whose name matches one or more targets.
 
 ### Usage
 
 ```bash
-java FileSearch <directory_path> <file1> [<file2> ...] [-i]
+java FileSearch <directory> <file1> [file2 ...] [-i]
 ```
 
 | Argument | Description |
 |---|---|
-| `<directory_path>` | Root directory to search from |
-| `<file1> [file2 ...]` | One or more exact filenames to look for |
-| `-i` | Optional flag for case-insensitive matching |
+| `<directory>` | Root of the search |
+| `<file1> [file2 ...]` | Exact filenames to look for |
+| `-i` | Case-insensitive matching (optional) |
 
-### Examples
+### Example
 
 ```bash
-# Case-sensitive search for two files
-java FileSearch /home/user/docs report.pdf notes.txt
-
-# Case-insensitive search
-java FileSearch /home/user/docs README.md -i
+java FileSearch /home/user/docs report.pdf notes.txt -i
 ```
 
-### Output
-
 ```
-Found file: /home/user/docs/project/report.pdf
-Found file: /home/user/docs/archive/notes.txt
+Found file: /home/user/docs/archive/Report.pdf
+Found file: /home/user/docs/notes.txt
 --------------------------------------------------
 Total matches found: 2
 ```
 
-### How It Works
+### How it works
 
-- Traverses directories recursively via `File.listFiles()`.
-- Prints the absolute path of every matching file.
-- Reports the total match count at the end.
-- Prints to `System.err` when given an invalid or non-existent directory.
+`searchFiles()` calls `File.listFiles()` and recurses into subdirectories. Matching is delegated to the private `matches()` method, which calls either `equals` or `equalsIgnoreCase` depending on the `-i` flag.
+
+> **Known issue:** `totalMatches` is a `static` field, so it accumulates across multiple calls within the same JVM. This causes incorrect totals if `searchFiles()` is called more than once — including across tests. It should be a local variable returned from the method.
 
 ---
 
 ## StringPermutations
 
-Generates all permutations of an input string using two independent algorithms — a classic recursive backtracking approach and an iterative implementation of Heap's algorithm.
+Generates all permutations of a string using two independent algorithms, then prints a time complexity comparison.
 
 ### Usage
-
-Run interactively:
 
 ```bash
 java StringPermutations
 ```
 
-You will be prompted for:
-1. The input string.
-2. Whether to include duplicate permutations (`true` / `false`).
+Prompts for the input string and whether to include duplicate permutations.
 
-### Example Session
+### Example
 
 ```
 Enter a string: ABC
 Include duplicate permutations? (true/false): false
 
 Recursive Permutations (without duplicates):
-ABC
-ACB
-BAC
-BCA
-CAB
-CBA
+ABC  ACB  BAC  BCA  CAB  CBA
 Total permutations: 6
 
 Non-Recursive Permutations (Heap's Algorithm):
-ABC
-BAC
-...
+ABC  BAC  CAB  ACB  BCA  CBA
 Total permutations: 6
 ```
 
 ### Algorithms
 
-| Approach | Algorithm | Duplicate handling |
+| Approach | Method | Duplicate control |
 |---|---|---|
-| Recursive | Backtracking with swap | Optional — skips duplicate characters at each index |
-| Iterative | Heap's Algorithm | Generates all, including duplicates |
+| Recursive | Backtracking with swap/unswap | `shouldSkip()` detects repeated characters at each position |
+| Iterative | Heap's Algorithm | Always generates all permutations; duplicates not filtered |
 
-### Time Complexity
-
-Both approaches run in **O(n!)** time. Heap's algorithm avoids the call-stack overhead of recursion but produces the same number of outputs. For strings longer than ~10 characters, output volume grows extremely fast.
+Both run in **O(n!)** time. Heap's algorithm avoids call-stack depth but produces the same output volume. Input longer than ~10 characters will produce enormous output.
 
 ---
 
 ## Running Tests
 
-Both test classes use **JUnit 5** and can be run in Eclipse or via the command line.
+Uses **JUnit 5**, no external dependencies beyond the test framework.
 
-In Eclipse: right-click the test file → *Run As* → *JUnit Test*.
+In Eclipse: right-click a test file → *Run As* → *JUnit Test*.
 
 ```bash
-# Compile
 javac -cp .:junit-platform.jar src/*.java
-
-# Run FileSearch tests
-java -cp .:junit-platform.jar org.junit.platform.console.ConsoleLauncher \
-     --select-class=FileSearchTest
-
-# Run StringPermutations tests
-java -cp .:junit-platform.jar org.junit.platform.console.ConsoleLauncher \
-     --select-class=StringPermutationsTest
+java  -cp .:junit-platform.jar org.junit.platform.console.ConsoleLauncher \
+      --select-class=FileSearchTest
+java  -cp .:junit-platform.jar org.junit.platform.console.ConsoleLauncher \
+      --select-class=StringPermutationsTest
 ```
 
-### Test Coverage
-
-**FileSearch**
-- Case-sensitive recursive match finds files in subdirectories.
-- Case-insensitive match finds files by uppercase name.
-- Invalid directory path exits gracefully without throwing.
-- Private `matches()` method verified via reflection.
-
-**StringPermutations**
-- Valid 3-character input generates permutations without error.
-- Duplicate handling (`AAB`) works correctly with and without the dedup flag.
-- Empty string input is handled gracefully.
-- Private `permute()` and `shouldSkip()` helpers verified via reflection.
+---
 
 ## Requirements
 
 - Java 21+
 - JUnit 5 (Jupiter)
-
-## Possible Improvements
-
-- Accept a glob or regex pattern in `FileSearch` instead of only exact names.
-- Return results from `FileSearch.searchFiles()` as a `List<File>` instead of printing directly, making it more testable and reusable.
-- Make `StringPermutations.generatePermutations()` return the set rather than printing, for programmatic use.
-- Remove the `static` counter `totalMatches` in `FileSearch` — it accumulates across calls in the same JVM, which breaks test isolation.
